@@ -1,20 +1,13 @@
-import { MongoClient } from 'mongodb';
+import mongoose from 'mongoose';
 
-const uri = 'mongodb://localhost:27017';
-const client = new MongoClient(uri);
-let database: any;
+const uri = 'mongodb://localhost:27017/db_datos';
 
-export const connectToMongo = async (dbName: string) => {
-  if (!database) {
-    await client.connect();
-    database = client.db(dbName);
+export const connectToMongo = async () => {
+  try {
+    await mongoose.connect(uri);
+    console.log('Conectado a MongoDB con Mongoose');
+  } catch (error) {
+    console.error('Error al conectar con MongoDB:', error);
+    throw error;
   }
-  return database;
-};
-
-export const getMongoDB = () => {
-  if (!database) {
-    throw new Error('MongoDB no está conectado. Llama a connectToMongo primero.');
-  }
-  return database;
 };

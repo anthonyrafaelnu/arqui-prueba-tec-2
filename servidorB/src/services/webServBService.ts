@@ -1,18 +1,12 @@
-import { IData } from 'common/models/dataModel';
 import { RabbitMqConfig } from 'common/services/rabbitmq';
-import { connectToMongo, getMongoDB } from 'common/services/mongodb';
+import { DataModel, IData } from 'common/models/dataModel';
 
 export const getAllData = async (): Promise<IData[]> => {
-    const db = getMongoDB();
-    const dataCollection = db.collection('data_table');
-
-    const data: IData[] = await dataCollection.find({}).toArray();
+    const data: IData[] = await DataModel.find();
     return data;
-};
+  };
 
 export async function startListening() {
-    await connectToMongo('db_datos');
-
     const rabbitMqConfig = new RabbitMqConfig('amqp://localhost');
     await rabbitMqConfig.connect();
     const channel = rabbitMqConfig.getChannel();
@@ -22,11 +16,19 @@ export async function startListening() {
             const messageContent = msg.content.toString();
             console.log(`Recibido: ${messageContent}`);
 
-            const data: IData = JSON.parse(messageContent);
-            const db = getMongoDB();
-            await db.collection('data_table').insertOne(data);
+            try {
+                const data: IData = JSON.parse(messageContent);
 
-            channel.ack(msg);
+                console.log('Guardando datos en mongo: ', data);
+
+                const newData = new DataModel(data);
+                await newData.save();
+
+                channel.ack(msg);
+            } catch (error) {
+                console.error('Error al guardar datos o al procesar mensaje:', error);
+                channel.nack(msg);
+            }
         }
     });
 

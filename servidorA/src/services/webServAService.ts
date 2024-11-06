@@ -29,14 +29,24 @@ export const saveData = async (data: any): Promise<void> => {
 
 export const saveAuth = async (authNumber: string): Promise<void> => {
     await redisClient.set(`auth:${authNumber}`, 'true');
+    await db.query('INSERT INTO auth_table (authNumber) VALUES (?)', [authNumber]);
 };
 
 export const getAuth = async (authNumber: string): Promise<boolean> => {
-    const cachedAuth = await redisClient.get(`auth:${authNumber}`);
-    if (cachedAuth) return true;
+  const cachedAuth = await redisClient.get(`auth:${authNumber}`);
+  if (cachedAuth) {
+    console.log('Autorización encontrada en caché');
+    return true;
+  }
 
-    const [rows]: any[] = await db.query('SELECT * FROM auth_table WHERE authNumber = ?', [authNumber]);
-    return rows.length > 0;
+  const [rows]: any[] = await db.query('SELECT * FROM auth_table WHERE authNumber = ?', [authNumber]);
+
+  if (rows.length > 0) {
+    await redisClient.set(`auth:${authNumber}`, 'true');
+    return true;
+  }
+
+  return false;
 };
 
 async function publishMessage(message: any) {

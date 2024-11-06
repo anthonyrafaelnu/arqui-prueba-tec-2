@@ -20,6 +20,7 @@
     "typescript": "^5.6.3"
   },
   "dependencies": {
-    "common": "file:../Common"
+    "common": "file:../Common",
+    "mongoose": "^8.8.0"
   }
 }
