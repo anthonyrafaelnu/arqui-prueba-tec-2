@@ -1,27 +1,66 @@
 import { RabbitMqConfig } from 'common/services/rabbitmq';
-import { DataModel, IData } from 'common/models/dataModel';
+import { DataMovement, IDataMovement } from 'common/models/dataMovimiento';
 
-export const getAllData = async (): Promise<IData[]> => {
-    const data: IData[] = await DataModel.find();
+export const getDataInRange = async (fromDate: Date | null, toDate: Date | null): Promise<IDataMovement[]> => {
+    const query: any = {};
+
+    if (fromDate) {
+        query.movementDate = { ...query.movementDate, $gte: fromDate };
+    }
+
+    if (toDate) {
+        query.movementDate = { ...query.movementDate, $lte: toDate };
+    }
+
+    const data: IDataMovement[] = await DataMovement.find(query);
     return data;
-  };
+};
+
+export const groupByMonth = async (): Promise<any> => {
+    const data: any = await DataMovement.aggregate([
+        {
+            $group: {
+                _id: {
+                    year: { $year: '$movementDate' },
+                    month: { $month: '$movementDate' }
+                },
+                amount: { $sum: '$amount' }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                yyyymm: {
+                    $concat: [
+                        { $toString: '$_id.year' },
+                        { $cond: { if: { $lt: ['$_id.month', 10] }, then: '0', else: '' } },
+                        { $toString: '$_id.month' }
+                    ]
+                },
+                amount: 1
+            }
+        }
+    ]);
+
+    return data;
+};
 
 export async function startListening() {
     const rabbitMqConfig = new RabbitMqConfig('amqp://localhost');
     await rabbitMqConfig.connect();
     const channel = rabbitMqConfig.getChannel();
 
-    channel?.consume('mi_cola', async (msg) => {
+    channel?.consume('movements', async (msg) => {
         if (msg) {
             const messageContent = msg.content.toString();
             console.log(`Recibido: ${messageContent}`);
 
             try {
-                const data: IData = JSON.parse(messageContent);
+                const data: IDataMovement = JSON.parse(messageContent);
 
                 console.log('Guardando datos en mongo: ', data);
 
-                const newData = new DataModel(data);
+                const newData = new DataMovement(data);
                 await newData.save();
 
                 channel.ack(msg);

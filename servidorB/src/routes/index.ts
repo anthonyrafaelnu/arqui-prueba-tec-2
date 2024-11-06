@@ -1,8 +1,9 @@
 import express from 'express';
-import { getAllData } from '../controllers/webServBController';
+import { getDataInRange, getDataGroupByMonth } from '../controllers/webServBController';
 
 const router = express.Router();
 
-router.get('/data', getAllData);
+router.get('/movements-between-dates', getDataInRange);
+router.get('/movements-grouped-by-month', getDataGroupByMonth);
 
 export default router;

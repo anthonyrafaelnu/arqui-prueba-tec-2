@@ -1,20 +1,20 @@
 import db from 'common/services/mysql';
 import { redisClient } from 'common/services/redis';
 import { RabbitMqConfig } from 'common/services/rabbitmq';
+import { ICreateMovement, IMovement } from '../../interfaces/IMovement';
 
 export const initializeDatabase = async (): Promise<void> => {
     try {
         await db.query(`
-            CREATE TABLE IF NOT EXISTS data_table (
+            CREATE TABLE IF NOT EXISTS movimientos (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            User VARCHAR(255),
-            Edad INT
-            );
-        `);
-
-        await db.query(`
-            CREATE TABLE IF NOT EXISTS auth_table (
-            authNumber VARCHAR(255) PRIMARY KEY
+            authorizationNumber VARCHAR(255),
+            movementDate DATE,
+            accountFrom VARCHAR(255),
+            accountTo VARCHAR(255),
+            destinationBank VARCHAR(255),
+            currency VARCHAR(255),
+            amount DECIMAL(10, 2)
             );
         `);
     } catch (error) {
@@ -22,42 +22,55 @@ export const initializeDatabase = async (): Promise<void> => {
     }
 };
 
-export const saveData = async (data: any): Promise<void> => {
-    await db.query('INSERT INTO data_table SET ?', data);
+export const saveData = async (data: ICreateMovement): Promise<void> => {
+    if (validateEmptyData(data) === false) {
+        throw new Error('Datos incompletos');
+    }
+
+    await db.query('INSERT INTO movimientos SET ?', data);
     await publishMessage(data);
 };
 
-export const saveAuth = async (authNumber: string): Promise<void> => {
-    await redisClient.set(`auth:${authNumber}`, 'true');
-    await db.query('INSERT INTO auth_table (authNumber) VALUES (?)', [authNumber]);
+export const getData = async (authNumber: string): Promise<IMovement> => {
+    const cachedAuth = await redisClient.get(`auth:${authNumber}`);
+    if (cachedAuth) {
+        console.log('Autorización encontrada en caché');
+        let json = JSON.parse(cachedAuth);
+        json.status = 'Obtenido en caché';
+
+        return json;
+    }
+
+    const [rows]: any[] = await db.query('SELECT * FROM movimientos WHERE authorizationNumber = ?', [authNumber]);
+
+    if (rows.length > 0) {
+        await redisClient.set(`auth:${authNumber}`, JSON.stringify(rows[0]));
+        let json = rows[0];
+        json.status = 'Obtenido de base de datos';
+        return json;
+    } else {
+        throw new Error('No se encontró el movimiento');
+    }
 };
 
-export const getAuth = async (authNumber: string): Promise<boolean> => {
-  const cachedAuth = await redisClient.get(`auth:${authNumber}`);
-  if (cachedAuth) {
-    console.log('Autorización encontrada en caché');
-    return true;
-  }
-
-  const [rows]: any[] = await db.query('SELECT * FROM auth_table WHERE authNumber = ?', [authNumber]);
-
-  if (rows.length > 0) {
-    await redisClient.set(`auth:${authNumber}`, 'true');
-    return true;
-  }
-
-  return false;
-};
-
-async function publishMessage(message: any) {
+async function publishMessage(message: ICreateMovement) {
     const rabbitMqConfig = new RabbitMqConfig('amqp://localhost');
     await rabbitMqConfig.connect();
     const channel = rabbitMqConfig.getChannel();
 
     const messageString = JSON.stringify(message);
 
-    channel?.sendToQueue('mi_cola', Buffer.from(messageString));
+    channel?.sendToQueue('movements', Buffer.from(messageString));
     console.log(`Mensaje enviado: ${messageString}`);
 
     await rabbitMqConfig.close();
+}
+
+function validateEmptyData(data: ICreateMovement): boolean {
+    if (data.authorizationNumber === '' || data.movementDate === null || data.accountFrom === ''
+        || data.accountTo === '' || data.destinationBank === '' || data.currency === ''
+        || data.amount === 0) {
+        return false;
+    }
+    return true;
 }

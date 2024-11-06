@@ -1,10 +1,9 @@
 import express from 'express';
-import { postData, getAuthorization, postAuthorization } from '../controllers/webServAController';
+import { postData, getData } from '../controllers/webServAController';
 
 const router = express.Router();
 
-router.post('/data', postData);
-router.post('/authorization', postAuthorization);
-router.get('/authorization/:authNumber', getAuthorization);
+router.post('/movements', postData);
+router.get('/movements/:authNumber', getData);
 
 export default router;

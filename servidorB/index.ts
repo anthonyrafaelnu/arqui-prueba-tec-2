@@ -16,7 +16,7 @@ const startServer = async () => {
     connectToMongo()
       .then(() => console.log('MongoDB conectado'))
       .catch((error) => console.error('Error al conectar a MongoDB:', error));
-      
+
     await startListening();
 
     app.listen(PORT, () => {

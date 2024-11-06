@@ -9,7 +9,7 @@ export class RabbitMqConfig {
   async connect() {
     this.connection = await amqp.connect(this.host);
     this.channel = await this.connection.createChannel();
-    await this.channel.assertQueue('mi_cola', { durable: false });
+    await this.channel.assertQueue('movements', { durable: false });
   }
 
   getChannel() {
